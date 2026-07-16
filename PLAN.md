@@ -4,11 +4,16 @@
 - **Audience:** Staff + customers in one Expo app (role-based UI)
 - **Stores:** Multi-store (one organisation owns many locations)
 - **Customer v1:** Browse only — scan/search barcode, see which stores have stock and price
+- **Customer access:** **Invite-only** (owner/manager invites customers). Not open signup — all-store stock + price is commercially sensitive.
 - **Staff:** Logged-in staff are **bound to one store** — they only see that store's stock
 - **Staff actions:** Report **stock count** (stocktake) and **request new stock** (scan product → request qty)
+- **Unknown barcode:** Staff **cannot** invent catalogue products. On unknown scan they can **flag for owner** (`product_suggestion` / “unknown barcode” queue). Owner/manager reviews and adds the product. Managers may also add products for their org.
 - **Owner fulfilment:** No supplier/cash-and-carry integrations yet — owner sees all store requests, buys offline, then **marks done** with **quantity bought**
-- **Grouping:** Requests and catalogue organised by **product category** + **source place** (where stock is sourced, e.g. Booker / Bestway / local cash & carry)
-- **Catalogue input:** Owner can **bulk-upload** a catalogue file when they have one (e.g. wholesaler CSV/price file export), **or add products one by one** (scan barcode → fill details, or manual form). No live wholesaler API in MVP.
+- **Request rules:** At most **one open** `stock_request` per `(storeId, productId)`. Partial fulfil allowed (`quantityBought` may differ from `quantityRequested`). Inventory always bumps by `quantityBought`. Cancel: creator (staff) or owner/manager.
+- **Grouping:** Requests and catalogue organised by **product category** (fixed enum) + **source place** (org-managed list, e.g. Booker / Bestway / local cash & carry)
+- **Catalogue input:** Owner can **bulk-upload** a catalogue file when they have one, **or add products one by one**. No live wholesaler API in MVP.
+- **Upload surface:** **CSV/spreadsheet import on web** (`apps/api` owner page) — large wholesaler files are awkward on phone. **One-by-one add on mobile** (scan + form).
+- **Images:** **No product images in MVP** (field deferred). Optional later: Vercel Blob.
 - **Stack:** Expo + Next.js API on Vercel + Neon Postgres + Better Auth
 - **No payments / online orders** in MVP
 
@@ -19,13 +24,14 @@ flowchart LR
   Staff[Staff_Expo] -->|store_scoped| API[Next.js_Vercel]
   Customer[Customer_Expo] -->|org_barcode| API
   Owner[Owner_Expo] -->|all_stores_requests| API
+  OwnerWeb[Owner_Web_import] -->|CSV_import| API
   API --> Auth[Better_Auth]
   API --> DB[(Neon_Postgres)]
 ```
 
 **Repo layout (Turborepo):**
 - [`apps/mobile`](apps/mobile) — Expo Router
-- [`apps/api`](apps/api) — Next.js App Router API
+- [`apps/api`](apps/api) — Next.js App Router API + **owner web pages** (catalogue import)
 - [`packages/db`](packages/db) — Drizzle schema + migrations
 - [`packages/shared`](packages/shared) — Zod types / API contracts
 
@@ -34,29 +40,35 @@ flowchart LR
 - **organisation** — the off-licence business
 - **store** — location (`name`, address, opening hours)
 - **user** + Better Auth tables
-- **membership** — `userId`, `organisationId`, `role` (`owner` | `manager` | `staff` | `customer`), **`storeId` required for staff** (and optional for manager; null for owner = all stores)
-- **product** — org catalogue: `barcode`, name, brand, **`category`** (e.g. beer, wine, spirits, soft_drinks, tobacco, snacks), **`sourcePlace`** (where to source: named cash & carry / wholesaler), size, ABV, image
-- **inventory** — per store: `storeId`, `productId`, `quantity`, `sellPricePence`, `reorderLevel`
-- **stock_count** — stocktake log: `storeId`, `productId`, `countedByUserId`, `quantityCounted`, `previousQuantity`, `createdAt`
+- **membership** — `userId`, `organisationId`, `role` (`owner` | `manager` | `staff` | `customer`)
+  - **staff:** exactly one `storeId` (required)
+  - **manager:** one or more stores via **`membership_store`** (`membershipId`, `storeId`) — not a single optional `storeId`
+  - **owner / customer:** no store binding (`storeId` null; customer sees all stores’ availability)
+- **source_place** — org-managed list (`organisationId`, `name`, optional `sortOrder`) used for grouping / shopping lists
+- **product** — org catalogue: `barcode`, name, brand, **`category`** (enum: `beer` | `wine` | `spirits` | `soft_drinks` | `tobacco` | `snacks` | `other`), **`sourcePlaceId`** (FK to `source_place`), size, ABV. **No image in MVP.**
+- **inventory** — per store: `storeId`, `productId`, `quantity` (nullable until first count), `sellPricePence`, `reorderLevel`
+- **stock_count** — stocktake log: `storeId`, `productId`, `countedByUserId`, `quantityCounted`, `previousQuantity` (null if never set), `createdAt`
 - **stock_request** — restock request from staff:
   - `storeId`, `productId`, `requestedByUserId`
   - `quantityRequested`, `note` optional
   - `status`: `open` | `done` | `cancelled`
-  - `fulfilledByUserId`, `quantityBought`, `fulfilledAt` (set when owner marks collected from cash & carry)
-- *(Optional later)* **supplier** table — MVP uses `product.sourcePlace` string/enum so requests group cleanly without integrations
+  - `fulfilledByUserId`, `quantityBought`, `fulfilledAt`
+  - Unique partial index: one **open** row per `(storeId, productId)`
+- **product_suggestion** — staff-flagged unknown barcode: `organisationId`, `storeId`, `barcode`, `suggestedByUserId`, `note` optional, `status` (`open` | `accepted` | `dismissed`), `createdAt`
+- *(Optional later)* **supplier** table / live wholesaler links — MVP stays on `source_place` + offline fulfil
 
 Barcode uniqueness: `(organisationId, barcode)`.
 
-## Role rules (updated)
+## Role rules
 
 | Role | Stock visibility | Actions |
 |------|------------------|---------|
-| **staff** | **Only their assigned store** | Scan → view product; report stock count; create stock request |
-| **manager** | Their store(s) | Same as staff + edit sell price / reorder level |
-| **owner** | All stores in org | View all inventory; **request board**; mark requests done + enter qty bought (updates inventory); **manage catalogue** (bulk upload **or** add one-by-one); set category + source place; invite users |
-| **customer** | All stores (availability) | Barcode finder across stores only |
+| **staff** | **Only their assigned store** | Scan → view product; report stock count; create/update open stock request; flag unknown barcode; cancel **own** open requests |
+| **manager** | Their assigned store(s) | Same as staff + edit sell price / reorder level; add/edit products; invite staff/customers for their stores; cancel requests for their stores |
+| **owner** | All stores in org | Everything manager can do across all stores; **request board**; mark requests done + enter qty bought; **catalogue** (web CSV import + mobile one-by-one); manage `source_place` list; invite users; review product suggestions |
+| **customer** | All stores (availability) — **invite-only** | Barcode finder across stores only |
 
-Staff APIs always filter `WHERE storeId = membership.storeId`. Never return other stores' quantities to staff.
+Staff APIs always filter to `membership.storeId`. Manager APIs filter to `membership_store` rows. Never return other stores’ quantities to staff.
 
 ## Core flows
 
@@ -67,55 +79,74 @@ sequenceDiagram
   participant Owner
   participant DB
   Staff->>API: Scan barcode at their store
-  API->>DB: Product + inventory for that store only
-  Staff->>API: Submit stock_count or stock_request
-  API->>DB: Insert count / open request
+  alt known product
+    API->>DB: Product + inventory for that store only
+    Staff->>API: Submit stock_count or stock_request
+    API->>DB: Insert count / upsert open request
+  else unknown barcode
+    Staff->>API: Flag product_suggestion
+    API->>DB: Insert suggestion open
+    Owner->>API: Accept suggestion / add product
+  end
   Owner->>API: List open requests grouped by sourcePlace then category
   Owner->>API: Mark done with quantityBought
   API->>DB: status=done; inventory.quantity += quantityBought
 ```
 
-**Staff — stock count**
-1. Login → locked to their store (no store picker unless manager with multiple)
-2. Scan barcode → see product name, category, source place, current system qty
-3. Enter counted qty → saves `stock_count` and sets `inventory.quantity` to counted value (or records variance; **default: overwrite quantity to counted**)
+**Staff — stock count (single SKU)**
+1. Login → locked to their store (managers with multiple stores get a store picker)
+2. Scan barcode:
+   - **Known + inventory row:** show name, category, source place, current qty (or “No qty yet — enter counted”)
+   - **Known, no inventory row yet:** treat qty as unset; first successful count **creates** inventory and sets quantity
+   - **Unknown:** offer **Flag for owner** (optional note) — do not invent a product
+3. Enter counted qty → saves `stock_count` and **sets** `inventory.quantity` to counted value
+4. **Confirm** when `|counted − previous|` is large (e.g. previous was set and delta ≥ max(5, 25% of previous)) or when previous was unset and counted is high — reduces accidental overwrites. Counts are always **per SKU**, not an implied full-shop stocktake session in MVP.
 
 **Staff — request stock**
-1. Scan (or pick from low-stock list) → enter qty needed + optional note
-2. Creates `stock_request` with `status=open`
-3. Staff can see **their store's** open/done requests only
+1. Scan (or pick from **low-stock list**: `quantity IS NOT NULL AND quantity <= reorderLevel`) → enter qty needed + optional note
+2. If an **open** request already exists for that `(storeId, productId)`, **update** `quantityRequested` / note instead of creating a second open row
+3. Staff can see **their store's** open/done/cancelled requests; they may cancel their own open requests
 
 **Owner — fulfil (cash & carry)**
-1. **Requests** screen: group list by **`sourcePlace`**, then by **`category`** (shopping-list style for a cash-and-carry run)
+1. **Requests** screen: group list by **`sourcePlace`**, then by **`category`**
 2. Each line: store name, product, qty requested, who asked
-3. After buying offline: mark **Done**, enter **quantity bought**
-4. System sets request `done` and **increments that store's inventory** by `quantityBought` (no external PO/API)
+3. After buying offline: mark **Done**, enter **quantity bought** (may be less, equal, or more than requested)
+4. System sets request `done` and **increments that store's inventory** by `quantityBought` (if inventory row missing, create it with that qty). No external PO/API.
 
 **Owner — catalogue (upload or one-by-one)**
-1. **Products** screen offers two paths:
-   - **Upload catalogue** — if the owner has a file (CSV/spreadsheet from wholesaler export, previous EPOS, or own sheet), map columns → import products (upsert on `(organisationId, barcode)`)
-   - **Add product** — scan barcode or type it, enter name / brand / category / source place / size / ABV (and optional image); save one product at a time
-2. Upload validation returns a short report: created / updated / skipped / row errors (invalid barcode, missing name, etc.)
-3. Optional later: on single-add scan, prefill name/brand from Open Food Facts if known — still editable before save
-4. Inventory rows remain per-store; catalogue upload creates **products** only unless the file also includes store qty/price columns (supported as optional columns)
+1. Two surfaces:
+   - **Web import** (`apps/api` owner page) — upload CSV against a **documented template** (no fancy column-mapping UI in MVP). Upsert on `(organisationId, barcode)`. Return summary: created / updated / skipped / row errors.
+   - **Mobile Add product** — scan or type barcode; name / brand / category / source place / size / ABV; save one at a time
+2. Default import creates **products only**. Optional columns (`storeName`/`storeId`, `quantity`, `sellPricePence`, `reorderLevel`) may seed inventory when present.
+3. After product-only import, inventory qty stays **unset** until first stock count or fulfil — UI must say so.
+4. Open Food Facts prefill on single-add: **deferred** (post-MVP nicety).
 
-**Customer**
-1. Scan → product + stores with stock > 0 (price + address)
-2. No requests / counts
+**Owner — product suggestions**
+1. List open suggestions (barcode, store, who flagged, note)
+2. **Accept** → jump to Add product with barcode prefilled → mark suggestion `accepted`
+3. **Dismiss** → `dismissed`
+
+**Customer (invite-only)**
+1. Must have `customer` membership for the org
+2. Scan → product + stores with stock > 0 (price + address)
+3. No requests / counts / suggestions
 
 ## Auth & API (key routes)
 
-- Better Auth on Next.js; Expo session via SecureStore
-- `GET /api/products/by-barcode` — customer: all stores; staff: single store context
-- `GET /api/stores/:storeId/inventory` — staff: only if `membership.storeId` matches
-- `POST /api/stock-counts` — staff+ for own store
-- `POST /api/stock-requests` — staff+ for own store
-- `GET /api/stock-requests?status=open` — owner: all stores, response grouped by `sourcePlace` → `category`
+- Better Auth on Next.js; Expo session via SecureStore; invite links create membership with role
+- `GET /api/products/by-barcode` — customer: all stores; staff/manager: scoped stores; includes “unset qty” vs numeric qty
+- `GET /api/stores/:storeId/inventory` — staff/manager: only if store in scope; supports `?lowStock=1`
+- `POST /api/stock-counts` — staff+ for own store; server applies overwrite + returns whether confirm threshold was suggested (client confirms with `confirmLargeDelta: true`)
+- `POST /api/stock-requests` — staff+ upserts single **open** request for `(storeId, productId)`
+- `POST /api/stock-requests/:id/cancel` — creator or manager/owner
+- `GET /api/stock-requests?status=open` — owner: all stores, grouped by `sourcePlace` → `category`; manager: their stores
 - `POST /api/stock-requests/:id/fulfil` — owner: `{ quantityBought }` → mark done + bump inventory
-- Product CRUD (owner): set `category` + `sourcePlace`
-- `POST /api/products` — owner: create/update one product
-- `POST /api/products/import` — owner: multipart CSV/spreadsheet upload → upsert products; return import summary
-- Expected import columns (minimum): `barcode`, `name`; recommended: `brand`, `category`, `sourcePlace`, `size`, `abv`; optional inventory: `storeId`/`storeName`, `quantity`, `sellPricePence`, `reorderLevel`
+- `POST /api/products` / `PATCH /api/products/:id` — owner/manager product create/update (category enum + `sourcePlaceId`)
+- `POST /api/products/import` — owner; multipart CSV on **web**; template columns only
+- `GET|POST /api/source-places` — owner manage list
+- `POST /api/product-suggestions` — staff flag unknown barcode
+- `GET /api/product-suggestions` + accept/dismiss — owner/manager
+- Expected import columns (minimum): `barcode`, `name`; recommended: `brand`, `category`, `sourcePlace` (name matched/created), `size`, `abv`; optional inventory: `storeId`/`storeName`, `quantity`, `sellPricePence`, `reorderLevel`
 
 ## Mobile UX (Expo)
 
@@ -123,7 +154,9 @@ sequenceDiagram
 **Owner tabs:** Scan (org) | Requests (fulfil board) | Stores | Products | More  
 **Customer tabs:** Scan | Stores  
 
-**Products (owner):** primary actions — **Upload catalogue** and **Add product**. List sectioned by category; empty state explains both paths (use a wholesaler/EPOS CSV if you have one, otherwise add as you scan).
+**Products (owner/manager, mobile):** primary action **Add product**; secondary link/copy explaining **Import on web** (URL to `apps/api` import page). List sectioned by category; empty state: add as you scan, or import CSV on web if you have a wholesaler/EPOS export.
+
+**Scan unknown:** clear empty state + **Flag for owner** CTA.
 
 Inventory / request lists: section headers by **category**; owner fulfil board primary sort by **source place**.
 
@@ -132,23 +165,27 @@ Inventory / request lists: section headers by **category**; owner fulfil board p
 - Neon Postgres via Vercel Marketplace
 - Env: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `EXPO_PUBLIC_API_URL`
 - EAS Build later for TestFlight / Play
+- No Blob / image CDN in MVP
 
 ## Implementation order
 
 1. Monorepo scaffold (Turborepo + Expo + Next.js + Drizzle + Better Auth)
-2. Schema + migrations (membership.storeId, category, sourcePlace, stock_count, stock_request)
-3. Auth + store-scoped authorisation helpers
-4. Owner catalogue: one-by-one product create/edit + CSV import upsert + import summary UI
-5. Staff scan → count + request APIs/screens
-6. Owner fulfil board (group by sourcePlace + category) + inventory bump
-7. Customer multi-store barcode lookup
-8. Seed (1 org, 2 stores, staff per store, sample products with categories/sources) + sample import CSV + README
+2. Schema + migrations (`membership` + `membership_store`, `source_place`, category enum, nullable inventory qty, `stock_count`, `stock_request` unique open, `product_suggestion`)
+3. Auth + store-scoped authorisation helpers + invite-only membership
+4. Owner/manager catalogue: **one-by-one** product create/edit (mobile) + **web CSV import** (template + summary)
+5. Staff scan → count (unset qty + large-delta confirm) + request upsert + low-stock list + unknown-barcode suggestions
+6. Owner fulfil board (group by sourcePlace + category) + inventory bump (incl. create inventory if missing)
+7. Customer invite + multi-store barcode lookup
+8. Seed (1 org, 2 stores, staff per store, source places, sample products, sample import CSV) + README
 
 ## Out of scope for MVP
-- Cash-and-carry / wholesaler **live** API integrations (file upload from account export is in scope)
-- Automatic mapping of every proprietary wholesaler export layout (ship a documented CSV template; column mapping UI is a stretch)
+- Cash-and-carry / wholesaler **live** API integrations (account file → CSV template upload is in scope)
+- Automatic mapping of proprietary wholesaler export layouts (documented CSV template only; column-mapping UI later)
+- Product images / Vercel Blob
+- Open Food Facts (or other) barcode prefill
+- Full-shop guided stocktake sessions (SKU-at-a-time only)
 - Online payment or collection orders
 - Formal purchase orders / invoices
-- Push notifications when owner fulfils
+- Push notifications when owner fulfils or when a suggestion is accepted
 - Age verification / Challenge 25
-- Public unauthenticated browse
+- Public / unauthenticated browse or open customer signup
