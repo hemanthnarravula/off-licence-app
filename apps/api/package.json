@@ -10,11 +10,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.23",
+    "@better-auth/expo": "^1.6.23",
     "@offlicence/db": "workspace:*",
     "@offlicence/shared": "workspace:*",
+    "better-auth": "^1.6.23",
     "next": "16.2.10",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
