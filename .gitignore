@@ -8,3 +8,7 @@ dist/
 !.env.example
 *.log
 .DS_Store
+package-lock.json
+apps/*/pnpm-lock.yaml
+*.tsbuildinfo
+apps/mobile/.claude/
