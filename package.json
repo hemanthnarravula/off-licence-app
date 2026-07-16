@@ -1,0 +1,27 @@
+{
+  "name": "off-licence-app",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "dev:api": "pnpm --filter @offlicence/api dev",
+    "dev:mobile": "pnpm --filter @offlicence/mobile start",
+    "db:generate": "pnpm --filter @offlicence/db generate",
+    "db:migrate": "pnpm --filter @offlicence/db migrate"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver",
+      "@esbuild-kit/core-utils"
+    ]
+  }
+}
