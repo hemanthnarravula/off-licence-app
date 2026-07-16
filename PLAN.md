@@ -1,4 +1,4 @@
-# Off-licence multi-store app (Expo + Vercel)
+# Off-licence multi-store app (Expo mobile + Next.js dashboard/API on Vercel)
 
 ## Decisions locked in
 - **Audience:** Staff + customers on **Expo**; owners/managers also get a **web dashboard** (desk work)
