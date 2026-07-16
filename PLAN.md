@@ -13,7 +13,7 @@
 - **Grouping:** Requests and catalogue organised by **product category** (fixed enum) + **source place** (org-managed list, e.g. Booker / Bestway / local cash & carry)
 - **Catalogue input:** Owner can **bulk-upload** a catalogue file when they have one, **or add products one by one**. No live wholesaler API in MVP.
 - **Upload surface:** **CSV/spreadsheet import on web** (`apps/api` owner page) — large wholesaler files are awkward on phone. **One-by-one add on mobile** (scan + form).
-- **Images:** **No product images in MVP** (field deferred). Optional later: Vercel Blob.
+- **Images:** Optional product image via **Vercel Blob**. Owner/manager can add/replace/remove on one-by-one product create/edit (mobile + web). CSV import does **not** require images; optional `imageUrl` column only if already hosted (no bulk binary upload in MVP).
 - **Stack:** Expo + Next.js API on Vercel + Neon Postgres + Better Auth
 - **No payments / online orders** in MVP
 
@@ -27,6 +27,7 @@ flowchart LR
   OwnerWeb[Owner_Web_import] -->|CSV_import| API
   API --> Auth[Better_Auth]
   API --> DB[(Neon_Postgres)]
+  API --> Blob[Vercel_Blob]
 ```
 
 **Repo layout (Turborepo):**
@@ -45,7 +46,7 @@ flowchart LR
   - **manager:** one or more stores via **`membership_store`** (`membershipId`, `storeId`) — not a single optional `storeId`
   - **owner / customer:** no store binding (`storeId` null; customer sees all stores’ availability)
 - **source_place** — org-managed list (`organisationId`, `name`, optional `sortOrder`) used for grouping / shopping lists
-- **product** — org catalogue: `barcode`, name, brand, **`category`** (enum: `beer` | `wine` | `spirits` | `soft_drinks` | `tobacco` | `snacks` | `other`), **`sourcePlaceId`** (FK to `source_place`), size, ABV. **No image in MVP.**
+- **product** — org catalogue: `barcode`, name, brand, **`category`** (enum: `beer` | `wine` | `spirits` | `soft_drinks` | `tobacco` | `snacks` | `other`), **`sourcePlaceId`** (FK to `source_place`), size, ABV, optional **`imageUrl`** (Vercel Blob public URL)
 - **inventory** — per store: `storeId`, `productId`, `quantity` (nullable until first count), `sellPricePence`, `reorderLevel`
 - **stock_count** — stocktake log: `storeId`, `productId`, `countedByUserId`, `quantityCounted`, `previousQuantity` (null if never set), `createdAt`
 - **stock_request** — restock request from staff:
@@ -116,10 +117,11 @@ sequenceDiagram
 **Owner — catalogue (upload or one-by-one)**
 1. Two surfaces:
    - **Web import** (`apps/api` owner page) — upload CSV against a **documented template** (no fancy column-mapping UI in MVP). Upsert on `(organisationId, barcode)`. Return summary: created / updated / skipped / row errors.
-   - **Mobile Add product** — scan or type barcode; name / brand / category / source place / size / ABV; save one at a time
-2. Default import creates **products only**. Optional columns (`storeName`/`storeId`, `quantity`, `sellPricePence`, `reorderLevel`) may seed inventory when present.
+   - **Mobile Add product** — scan or type barcode; name / brand / category / source place / size / ABV; optional **photo** (camera/library → upload to Vercel Blob → store `imageUrl`); save one at a time
+2. Default import creates **products only**. Optional columns (`storeName`/`storeId`, `quantity`, `sellPricePence`, `reorderLevel`) may seed inventory when present. Optional `imageUrl` if URLs already exist; no zip/multipart image bulk in MVP.
 3. After product-only import, inventory qty stays **unset** until first stock count or fulfil — UI must say so.
-4. Open Food Facts prefill on single-add: **deferred** (post-MVP nicety).
+4. Replacing an image uploads a new Blob object and updates `imageUrl`; old Blob should be deleted when replaced/removed (best-effort).
+5. Open Food Facts prefill on single-add: **deferred** (post-MVP nicety).
 
 **Owner — product suggestions**
 1. List open suggestions (barcode, store, who flagged, note)
@@ -141,12 +143,14 @@ sequenceDiagram
 - `POST /api/stock-requests/:id/cancel` — creator or manager/owner
 - `GET /api/stock-requests?status=open` — owner: all stores, grouped by `sourcePlace` → `category`; manager: their stores
 - `POST /api/stock-requests/:id/fulfil` — owner: `{ quantityBought }` → mark done + bump inventory
-- `POST /api/products` / `PATCH /api/products/:id` — owner/manager product create/update (category enum + `sourcePlaceId`)
+- `POST /api/products` / `PATCH /api/products/:id` — owner/manager product create/update (category enum + `sourcePlaceId` + optional `imageUrl`)
+- `POST /api/products/:id/image` — owner/manager; client uploads via **Vercel Blob client token** (or server stub upload); returns `{ imageUrl }` and persists on product
+- `DELETE /api/products/:id/image` — owner/manager; clear `imageUrl` + delete Blob
 - `POST /api/products/import` — owner; multipart CSV on **web**; template columns only
 - `GET|POST /api/source-places` — owner manage list
 - `POST /api/product-suggestions` — staff flag unknown barcode
 - `GET /api/product-suggestions` + accept/dismiss — owner/manager
-- Expected import columns (minimum): `barcode`, `name`; recommended: `brand`, `category`, `sourcePlace` (name matched/created), `size`, `abv`; optional inventory: `storeId`/`storeName`, `quantity`, `sellPricePence`, `reorderLevel`
+- Expected import columns (minimum): `barcode`, `name`; recommended: `brand`, `category`, `sourcePlace` (name matched/created), `size`, `abv`; optional: `imageUrl`; optional inventory: `storeId`/`storeName`, `quantity`, `sellPricePence`, `reorderLevel`
 
 ## Mobile UX (Expo)
 
@@ -154,7 +158,7 @@ sequenceDiagram
 **Owner tabs:** Scan (org) | Requests (fulfil board) | Stores | Products | More  
 **Customer tabs:** Scan | Stores  
 
-**Products (owner/manager, mobile):** primary action **Add product**; secondary link/copy explaining **Import on web** (URL to `apps/api` import page). List sectioned by category; empty state: add as you scan, or import CSV on web if you have a wholesaler/EPOS export.
+**Products (owner/manager, mobile):** primary action **Add product** (incl. optional image); secondary link/copy explaining **Import on web** (URL to `apps/api` import page). Product detail/edit can change or remove image. List sectioned by category; empty state: add as you scan, or import CSV on web if you have a wholesaler/EPOS export. Thumbnail in scan/inventory rows when `imageUrl` present.
 
 **Scan unknown:** clear empty state + **Flag for owner** CTA.
 
@@ -163,25 +167,25 @@ Inventory / request lists: section headers by **category**; owner fulfil board p
 ## Infra
 
 - Neon Postgres via Vercel Marketplace
-- Env: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `EXPO_PUBLIC_API_URL`
+- **Vercel Blob** for product images (`@vercel/blob`; client uploads with short-lived tokens from the API)
+- Env: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `EXPO_PUBLIC_API_URL`, `BLOB_READ_WRITE_TOKEN`
 - EAS Build later for TestFlight / Play
-- No Blob / image CDN in MVP
 
 ## Implementation order
 
-1. Monorepo scaffold (Turborepo + Expo + Next.js + Drizzle + Better Auth)
-2. Schema + migrations (`membership` + `membership_store`, `source_place`, category enum, nullable inventory qty, `stock_count`, `stock_request` unique open, `product_suggestion`)
+1. Monorepo scaffold (Turborepo + Expo + Next.js + Drizzle + Better Auth + Vercel Blob)
+2. Schema + migrations (`membership` + `membership_store`, `source_place`, category enum, `product.imageUrl`, nullable inventory qty, `stock_count`, `stock_request` unique open, `product_suggestion`)
 3. Auth + store-scoped authorisation helpers + invite-only membership
-4. Owner/manager catalogue: **one-by-one** product create/edit (mobile) + **web CSV import** (template + summary)
+4. Owner/manager catalogue: **one-by-one** product create/edit (mobile, optional Blob image) + **web CSV import** (template + summary)
 5. Staff scan → count (unset qty + large-delta confirm) + request upsert + low-stock list + unknown-barcode suggestions
 6. Owner fulfil board (group by sourcePlace + category) + inventory bump (incl. create inventory if missing)
-7. Customer invite + multi-store barcode lookup
+7. Customer invite + multi-store barcode lookup (show image when present)
 8. Seed (1 org, 2 stores, staff per store, source places, sample products, sample import CSV) + README
 
 ## Out of scope for MVP
 - Cash-and-carry / wholesaler **live** API integrations (account file → CSV template upload is in scope)
 - Automatic mapping of proprietary wholesaler export layouts (documented CSV template only; column-mapping UI later)
-- Product images / Vercel Blob
+- Bulk binary image import / image scraping from wholesaler sites
 - Open Food Facts (or other) barcode prefill
 - Full-shop guided stocktake sessions (SKU-at-a-time only)
 - Online payment or collection orders
