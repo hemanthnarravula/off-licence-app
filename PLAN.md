@@ -8,6 +8,7 @@
 - **Staff actions:** Report **stock count** (stocktake) and **request new stock** (scan product → request qty)
 - **Owner fulfilment:** No supplier/cash-and-carry integrations yet — owner sees all store requests, buys offline, then **marks done** with **quantity bought**
 - **Grouping:** Requests and catalogue organised by **product category** + **source place** (where stock is sourced, e.g. Booker / Bestway / local cash & carry)
+- **Catalogue input:** Owner can **bulk-upload** a catalogue file when they have one (e.g. wholesaler CSV/price file export), **or add products one by one** (scan barcode → fill details, or manual form). No live wholesaler API in MVP.
 - **Stack:** Expo + Next.js API on Vercel + Neon Postgres + Better Auth
 - **No payments / online orders** in MVP
 
@@ -52,7 +53,7 @@ Barcode uniqueness: `(organisationId, barcode)`.
 |------|------------------|---------|
 | **staff** | **Only their assigned store** | Scan → view product; report stock count; create stock request |
 | **manager** | Their store(s) | Same as staff + edit sell price / reorder level |
-| **owner** | All stores in org | View all inventory; **request board**; mark requests done + enter qty bought (updates inventory); manage products (category + source place); invite users |
+| **owner** | All stores in org | View all inventory; **request board**; mark requests done + enter qty bought (updates inventory); **manage catalogue** (bulk upload **or** add one-by-one); set category + source place; invite users |
 | **customer** | All stores (availability) | Barcode finder across stores only |
 
 Staff APIs always filter `WHERE storeId = membership.storeId`. Never return other stores' quantities to staff.
@@ -90,6 +91,14 @@ sequenceDiagram
 3. After buying offline: mark **Done**, enter **quantity bought**
 4. System sets request `done` and **increments that store's inventory** by `quantityBought` (no external PO/API)
 
+**Owner — catalogue (upload or one-by-one)**
+1. **Products** screen offers two paths:
+   - **Upload catalogue** — if the owner has a file (CSV/spreadsheet from wholesaler export, previous EPOS, or own sheet), map columns → import products (upsert on `(organisationId, barcode)`)
+   - **Add product** — scan barcode or type it, enter name / brand / category / source place / size / ABV (and optional image); save one product at a time
+2. Upload validation returns a short report: created / updated / skipped / row errors (invalid barcode, missing name, etc.)
+3. Optional later: on single-add scan, prefill name/brand from Open Food Facts if known — still editable before save
+4. Inventory rows remain per-store; catalogue upload creates **products** only unless the file also includes store qty/price columns (supported as optional columns)
+
 **Customer**
 1. Scan → product + stores with stock > 0 (price + address)
 2. No requests / counts
@@ -104,12 +113,17 @@ sequenceDiagram
 - `GET /api/stock-requests?status=open` — owner: all stores, response grouped by `sourcePlace` → `category`
 - `POST /api/stock-requests/:id/fulfil` — owner: `{ quantityBought }` → mark done + bump inventory
 - Product CRUD (owner): set `category` + `sourcePlace`
+- `POST /api/products` — owner: create/update one product
+- `POST /api/products/import` — owner: multipart CSV/spreadsheet upload → upsert products; return import summary
+- Expected import columns (minimum): `barcode`, `name`; recommended: `brand`, `category`, `sourcePlace`, `size`, `abv`; optional inventory: `storeId`/`storeName`, `quantity`, `sellPricePence`, `reorderLevel`
 
 ## Mobile UX (Expo)
 
 **Staff tabs:** Scan | Inventory (my store) | Requests (my store) | More  
 **Owner tabs:** Scan (org) | Requests (fulfil board) | Stores | Products | More  
 **Customer tabs:** Scan | Stores  
+
+**Products (owner):** primary actions — **Upload catalogue** and **Add product**. List sectioned by category; empty state explains both paths (use a wholesaler/EPOS CSV if you have one, otherwise add as you scan).
 
 Inventory / request lists: section headers by **category**; owner fulfil board primary sort by **source place**.
 
@@ -124,13 +138,15 @@ Inventory / request lists: section headers by **category**; owner fulfil board p
 1. Monorepo scaffold (Turborepo + Expo + Next.js + Drizzle + Better Auth)
 2. Schema + migrations (membership.storeId, category, sourcePlace, stock_count, stock_request)
 3. Auth + store-scoped authorisation helpers
-4. Staff scan → count + request APIs/screens
-5. Owner fulfil board (group by sourcePlace + category) + inventory bump
-6. Customer multi-store barcode lookup
-7. Seed (1 org, 2 stores, staff per store, sample products with categories/sources) + README
+4. Owner catalogue: one-by-one product create/edit + CSV import upsert + import summary UI
+5. Staff scan → count + request APIs/screens
+6. Owner fulfil board (group by sourcePlace + category) + inventory bump
+7. Customer multi-store barcode lookup
+8. Seed (1 org, 2 stores, staff per store, sample products with categories/sources) + sample import CSV + README
 
 ## Out of scope for MVP
-- Cash-and-carry / wholesaler API integrations
+- Cash-and-carry / wholesaler **live** API integrations (file upload from account export is in scope)
+- Automatic mapping of every proprietary wholesaler export layout (ship a documented CSV template; column mapping UI is a stretch)
 - Online payment or collection orders
 - Formal purchase orders / invoices
 - Push notifications when owner fulfils
