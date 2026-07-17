@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
@@ -8,13 +8,6 @@ import { auth } from "@/lib/auth";
 export type LoginState = {
   error: string | null;
 };
-
-function applySetCookieHeaders(headerList: Headers) {
-  const raw = headerList.getSetCookie?.() ?? [];
-  const fallback = headerList.get("set-cookie");
-  const values = raw.length > 0 ? raw : fallback ? [fallback] : [];
-  return values;
-}
 
 export async function loginAction(
   _prev: LoginState,
@@ -31,54 +24,23 @@ export async function loginAction(
 
   try {
     const requestHeaders = await headers();
-    const cookieStore = await cookies();
 
-    const result =
-      mode === "sign-up"
-        ? await auth.api.signUpEmail({
-            body: {
-              email,
-              password,
-              name: name || email.split("@")[0] || "User",
-            },
-            headers: requestHeaders,
-            returnHeaders: true,
-          })
-        : await auth.api.signInEmail({
-            body: { email, password },
-            headers: requestHeaders,
-            returnHeaders: true,
-          });
-
-    // Belt-and-suspenders: explicitly persist Set-Cookie from Better Auth.
-    const headerBag =
-      result && typeof result === "object" && "headers" in result
-        ? (result.headers as Headers)
-        : null;
-
-    if (headerBag) {
-      for (const setCookie of applySetCookieHeaders(headerBag)) {
-        const [pair, ...attrs] = setCookie.split(";");
-        const [cookieName, ...valueParts] = pair.split("=");
-        if (!cookieName) continue;
-        const value = valueParts.join("=");
-        const attrMap = Object.fromEntries(
-          attrs.map((part) => {
-            const [k, ...rest] = part.trim().split("=");
-            return [k.toLowerCase(), rest.join("=") ?? true] as const;
-          }),
-        );
-        cookieStore.set(cookieName.trim(), value, {
-          path: typeof attrMap.path === "string" ? attrMap.path : "/",
-          httpOnly: "httponly" in attrMap,
-          secure: "secure" in attrMap,
-          sameSite: "none" in attrMap ? "none" : "lax",
-          maxAge:
-            typeof attrMap["max-age"] === "string"
-              ? Number(attrMap["max-age"])
-              : undefined,
-        });
-      }
+    // nextCookies() plugin persists the session cookie via next/headers.
+    // Do NOT re-set Set-Cookie values manually — that double-encodes the token.
+    if (mode === "sign-up") {
+      await auth.api.signUpEmail({
+        body: {
+          email,
+          password,
+          name: name || email.split("@")[0] || "User",
+        },
+        headers: requestHeaders,
+      });
+    } else {
+      await auth.api.signInEmail({
+        body: { email, password },
+        headers: requestHeaders,
+      });
     }
   } catch (err) {
     if (err instanceof APIError) {
