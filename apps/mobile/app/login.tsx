@@ -1,12 +1,14 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { authClient } from "@/lib/auth-client";
 import { useSession } from "@/lib/session";
 
@@ -51,7 +53,11 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safe}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <Text style={styles.eyebrow}>Off-licence</Text>
       <Text style={styles.title}>
         {mode === "sign-in" ? "Staff sign in" : "Create account"}
@@ -112,11 +118,16 @@ export default function LoginScreen() {
             : "Already have an account? Sign in"}
         </Text>
       </Pressable>
-    </View>
+    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#fafafa",
+  },
   container: {
     flex: 1,
     justifyContent: "center",
@@ -150,6 +161,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: "#fff",
     fontSize: 16,
+    color: "#18181b",
   },
   button: {
     backgroundColor: "#18181b",

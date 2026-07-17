@@ -1,12 +1,9 @@
-import { SymbolView } from "expo-symbols";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import Colors from "@/constants/Colors";
-import { useColorScheme } from "@/components/useColorScheme";
-import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useSession } from "@/lib/session";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const { membership } = useSession();
   const role = membership?.role;
   const isOwnerOrManager = role === "owner" || role === "manager";
@@ -16,20 +13,25 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        headerShown: useClientOnlyValue(false, true),
+        tabBarActiveTintColor: Colors.light.tint,
+        tabBarInactiveTintColor: Colors.light.tabIconDefault,
+        tabBarStyle: {
+          backgroundColor: "#ffffff",
+          borderTopColor: "#e4e4e7",
+        },
+        headerStyle: { backgroundColor: "#ffffff" },
+        headerTitleStyle: { color: "#18181b", fontWeight: "600" },
+        headerShadowVisible: false,
+        headerShown: true,
+        sceneStyle: { backgroundColor: "#fafafa" },
       }}
     >
       <Tabs.Screen
         name="scan"
         options={{
           title: "Scan",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: "barcode.viewfinder", android: "qr_code", web: "qr_code" }}
-              tintColor={color}
-              size={26}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="barcode-outline" color={color} size={size} />
           ),
         }}
       />
@@ -38,12 +40,8 @@ export default function TabLayout() {
         options={{
           title: "Inventory",
           href: isStaff ? undefined : null,
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: "shippingbox", android: "inventory", web: "inventory" }}
-              tintColor={color}
-              size={26}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cube-outline" color={color} size={size} />
           ),
         }}
       />
@@ -52,12 +50,8 @@ export default function TabLayout() {
         options={{
           title: "Requests",
           href: isCustomer ? null : undefined,
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: "list.bullet", android: "list", web: "list" }}
-              tintColor={color}
-              size={26}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="list-outline" color={color} size={size} />
           ),
         }}
       />
@@ -66,12 +60,8 @@ export default function TabLayout() {
         options={{
           title: "Products",
           href: isOwnerOrManager ? undefined : null,
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: "tag", android: "sell", web: "sell" }}
-              tintColor={color}
-              size={26}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetag-outline" color={color} size={size} />
           ),
         }}
       />
@@ -79,16 +69,8 @@ export default function TabLayout() {
         name="more"
         options={{
           title: "More",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "ellipsis.circle",
-                android: "more",
-                web: "more",
-              }}
-              tintColor={color}
-              size={26}
-            />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="ellipsis-horizontal-circle" color={color} size={size} />
           ),
         }}
       />

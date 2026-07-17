@@ -151,12 +151,14 @@ export default function MoreScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
     padding: 20,
     gap: 10,
     paddingBottom: 40,
+    backgroundColor: "#fafafa",
   },
-  title: { fontSize: 28, fontWeight: "700" },
-  section: { marginTop: 12, fontSize: 18, fontWeight: "700" },
+  title: { fontSize: 28, fontWeight: "700", color: "#18181b" },
+  section: { marginTop: 12, fontSize: 18, fontWeight: "700", color: "#18181b" },
   meta: { color: "#52525b", fontSize: 14 },
   row: { flexDirection: "row", gap: 8, marginTop: 6 },
   button: {

@@ -137,8 +137,8 @@ export default function InventoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 10, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: "700" },
+  container: { flexGrow: 1, padding: 20, gap: 10, paddingBottom: 40, backgroundColor: "#fafafa" },
+  title: { fontSize: 28, fontWeight: "700", color: "#18181b" },
   meta: { color: "#52525b", fontSize: 14 },
   row: { flexDirection: "row", gap: 8 },
   chip: {
