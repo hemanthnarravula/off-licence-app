@@ -106,3 +106,12 @@ export type TeamInviteInput = z.infer<typeof teamInviteInputSchema>;
 
 export const inviteStatusSchema = z.enum(["open", "accepted", "revoked"]);
 export type InviteStatus = z.infer<typeof inviteStatusSchema>;
+
+export const stockCountInputSchema = z.object({
+  storeId: z.string().uuid(),
+  productId: z.string().uuid(),
+  quantityCounted: z.number().int().nonnegative(),
+  /** Required when server says the delta is large. */
+  confirmLargeDelta: z.boolean().optional(),
+});
+export type StockCountInput = z.infer<typeof stockCountInputSchema>;

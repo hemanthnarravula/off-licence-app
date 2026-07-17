@@ -57,7 +57,7 @@ After first sign-up, re-run `pnpm db:seed` (or attach membership manually) so th
 
 ## Status
 
-Dashboard now includes **Products**, **Requests fulfil board**, **Suggestions**, **Stores**, **Source places**, and **Team** invites. Staff mobile scan flows next.
+Dashboard now includes Products, Requests fulfil board, Suggestions, Stores, Source places, and Team. **Staff mobile** supports scan/lookup, stock counts (with large-delta confirm), stock requests, low-stock inventory, and unknown-barcode flags.
 
 Products import template: `apps/api/public/sample-products.csv`.
 Image uploads require `BLOB_READ_WRITE_TOKEN` (Vercel Blob).
