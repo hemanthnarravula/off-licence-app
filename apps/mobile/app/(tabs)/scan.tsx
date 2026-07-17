@@ -50,19 +50,24 @@ export default function ScanScreen() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (membership?.storeIds === null || (membership?.storeIds?.length ?? 0) > 1) {
-      void apiFetch<{ stores: { id: string; name: string }[] }>("/api/stores").then(
-        (res) => {
-          if (res.ok) {
-            setStores(res.data.stores);
-            if (!storeId && res.data.stores[0]) {
-              setStoreId(res.data.stores[0].id);
-            }
-          }
-        },
-      );
-    }
-  }, [membership, storeId, setStoreId]);
+    let cancelled = false;
+    void apiFetch<{ stores: { id: string; name: string }[] }>("/api/stores").then(
+      (res) => {
+        if (cancelled || !res.ok) return;
+        setStores(res.data.stores);
+        if (!storeId && res.data.stores[0]) {
+          setStoreId(res.data.stores[0].id);
+        }
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally once on mount; storeId is only used for initial default.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setStoreId]);
+
+  const storeName = stores.find((store) => store.id === storeId)?.name;
 
   const runLookup = useCallback(
     async (code: string) => {
@@ -183,14 +188,15 @@ export default function ScanScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Scan</Text>
       {!storeId ? (
         <Text style={styles.meta}>Choose a store to continue.</Text>
       ) : (
-        <Text style={styles.meta}>Store: {storeId.slice(0, 8)}…</Text>
+        <Text style={styles.meta}>
+          Store: {storeName ?? "Loading…"}
+        </Text>
       )}
 
-      {stores.length > 1 || membership?.storeIds === null ? (
+      {stores.length > 1 ? (
         <View style={styles.storePicker}>
           {stores.map((store) => (
             <Pressable
@@ -223,14 +229,14 @@ export default function ScanScreen() {
       />
       <View style={styles.row}>
         <Pressable
-          style={styles.button}
+          style={[styles.button, styles.rowButton]}
           onPress={() => void runLookup(barcode.trim())}
           disabled={busy || !barcode.trim()}
         >
           <Text style={styles.buttonText}>Look up</Text>
         </Pressable>
         <Pressable
-          style={styles.secondary}
+          style={[styles.secondary, styles.rowButton]}
           onPress={async () => {
             if (!permission?.granted) {
               const result = await requestPermission();
@@ -358,10 +364,9 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, gap: 10, paddingBottom: 40, backgroundColor: "#fafafa" },
-  title: { fontSize: 28, fontWeight: "700", color: "#18181b" },
+  container: { padding: 20, gap: 10, paddingBottom: 40, backgroundColor: "#fafafa" },
   meta: { color: "#52525b", fontSize: 14 },
-  label: { fontWeight: "600", marginTop: 4 },
+  label: { fontWeight: "600", marginTop: 4, color: "#18181b" },
   input: {
     borderWidth: 1,
     borderColor: "#d4d4d8",
@@ -369,15 +374,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#fff",
+    color: "#18181b",
   },
   row: { flexDirection: "row", gap: 8 },
+  rowButton: { flex: 1 },
   button: {
     backgroundColor: "#18181b",
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 14,
     alignItems: "center",
-    flex: 1,
+    justifyContent: "center",
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   secondary: {
@@ -387,7 +394,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     alignItems: "center",
-    flex: 1,
+    justifyContent: "center",
     backgroundColor: "#fff",
   },
   secondaryText: { fontWeight: "600", color: "#18181b" },
