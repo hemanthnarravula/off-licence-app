@@ -208,7 +208,7 @@ export default function RequestsScreen() {
       <Text style={styles.title}>Requests</Text>
       {canFulfil ? (
         <Text style={styles.meta}>
-          Grouped by source place → category. Mark done after cash &amp; carry.
+          Grouped by source place → category. Mark done after cash & carry.
         </Text>
       ) : (
         <Text style={styles.meta}>Your store&apos;s stock requests.</Text>

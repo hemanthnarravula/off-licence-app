@@ -37,7 +37,7 @@ export default function TabLayout() {
         name="inventory"
         options={{
           title: "Inventory",
-          href: isStaff || (!isOwnerOrManager && !isCustomer) ? undefined : null,
+          href: isStaff ? undefined : null,
           tabBarIcon: ({ color }) => (
             <SymbolView
               name={{ ios: "shippingbox", android: "inventory", web: "inventory" }}
