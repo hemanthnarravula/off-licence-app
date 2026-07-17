@@ -1,0 +1,19 @@
+{
+  "name": "off-licence-app",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:generate": "turbo run db:generate --filter=@off-licence/db",
+    "db:migrate": "turbo run db:migrate --filter=@off-licence/db",
+    "db:seed": "turbo run db:seed --filter=@off-licence/db",
+    "dev:api": "turbo run dev --filter=@off-licence/api",
+    "dev:mobile": "turbo run dev --filter=@off-licence/mobile"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}
