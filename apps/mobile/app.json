@@ -1,14 +1,18 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Off-licence",
+    "slug": "off-licence",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.offlicence.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Off-licence to scan product barcodes."
+      }
     },
     "android": {
       "adaptiveIcon": {

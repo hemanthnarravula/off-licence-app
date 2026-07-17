@@ -10,9 +10,22 @@ const allowedOrigins = new Set([
   "http://127.0.0.1:3000",
 ]);
 
+function isAllowedOrigin(origin: string) {
+  if (!origin) return false;
+  if (allowedOrigins.has(origin)) return true;
+  // Expo Go / tunnel / Cloudflare quick tunnels during local device testing
+  if (origin.startsWith("exp://")) return true;
+  if (origin.startsWith("http://localhost:")) return true;
+  if (origin.startsWith("http://127.0.0.1:")) return true;
+  if (origin.endsWith(".trycloudflare.com")) return true;
+  if (origin.endsWith(".exp.direct")) return true;
+  if (origin.endsWith(".expo.dev")) return true;
+  return false;
+}
+
 function withCors(request: NextRequest, response: NextResponse) {
   const origin = request.headers.get("origin") ?? "";
-  if (allowedOrigins.has(origin)) {
+  if (isAllowedOrigin(origin)) {
     response.headers.set("Access-Control-Allow-Origin", origin);
     response.headers.set("Access-Control-Allow-Credentials", "true");
     response.headers.set(
