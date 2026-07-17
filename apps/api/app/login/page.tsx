@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [name, setName] = useState("Owner Demo");
+  const [email, setEmail] = useState("owner@example.com");
+  const [password, setPassword] = useState("password123");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -41,8 +39,17 @@ export default function LoginPage() {
         }
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      // Confirm cookie session landed before leaving the page.
+      const session = await authClient.getSession();
+      if (!session.data?.user) {
+        setError(
+          "Signed in, but no session cookie was stored. Try again or use Safari.",
+        );
+        return;
+      }
+
+      // Full navigation so the dashboard RSC request always includes the cookie.
+      window.location.assign("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -112,7 +119,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
         >
           {pending
             ? "Please wait…"

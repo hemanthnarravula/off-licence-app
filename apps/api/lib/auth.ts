@@ -25,6 +25,8 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     baseURL,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "exp://",
     "mobile://",
     "http://localhost:8081",
@@ -32,6 +34,7 @@ export const auth = betterAuth({
     "http://localhost:8090",
     "http://127.0.0.1:8090",
     process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000",
+    process.env.NEXT_PUBLIC_APP_URL ?? "",
     // Device testing via Cloudflare / Expo tunnels
     ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").filter(Boolean) ??
       []),
