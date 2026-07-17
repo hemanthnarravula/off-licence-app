@@ -42,44 +42,51 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const session = await authClient.getSession();
-    if (!session.data?.user) {
+    try {
+      const session = await authClient.getSession();
+      if (!session.data?.user) {
+        setUser(null);
+        setMembership(null);
+        setStoreId(null);
+        setLoading(false);
+        return;
+      }
+
+      const me = await apiFetch<MeResponse>("/api/me");
+      if (!me.ok) {
+        setUser({
+          id: session.data.user.id,
+          email: session.data.user.email,
+          name: session.data.user.name,
+        });
+        setMembership(null);
+        setStoreId(null);
+        setLoading(false);
+        return;
+      }
+
+      setUser(me.data.user);
+      setMembership(me.data.membership);
+      const ids = me.data.membership.storeIds;
+      if (ids?.length === 1) {
+        setStoreId(ids[0]);
+      } else if (ids == null) {
+        // owner: leave picker to load stores later; keep existing if still valid
+        setStoreId((current) => current);
+      } else if (ids.length > 1) {
+        setStoreId((current) =>
+          current && ids.includes(current) ? current : ids[0],
+        );
+      } else {
+        setStoreId(null);
+      }
+    } catch {
       setUser(null);
       setMembership(null);
       setStoreId(null);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const me = await apiFetch<MeResponse>("/api/me");
-    if (!me.ok) {
-      setUser({
-        id: session.data.user.id,
-        email: session.data.user.email,
-        name: session.data.user.name,
-      });
-      setMembership(null);
-      setStoreId(null);
-      setLoading(false);
-      return;
-    }
-
-    setUser(me.data.user);
-    setMembership(me.data.membership);
-    const ids = me.data.membership.storeIds;
-    if (ids?.length === 1) {
-      setStoreId(ids[0]);
-    } else if (ids == null) {
-      // owner: leave picker to load stores later; keep existing if still valid
-      setStoreId((current) => current);
-    } else if (ids.length > 1) {
-      setStoreId((current) =>
-        current && ids.includes(current) ? current : ids[0],
-      );
-    } else {
-      setStoreId(null);
-    }
-    setLoading(false);
   }, []);
 
   useEffect(() => {

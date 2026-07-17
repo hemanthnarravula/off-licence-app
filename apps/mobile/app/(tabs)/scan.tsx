@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { useRouter } from "expo-router";
 import { apiFetch } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
@@ -33,6 +34,9 @@ type LookupResult =
 
 export default function ScanScreen() {
   const { storeId, membership, setStoreId } = useSession();
+  const router = useRouter();
+  const canAddProduct =
+    membership?.role === "owner" || membership?.role === "manager";
   const [permission, requestPermission] = useCameraPermissions();
   const [scannerOpen, setScannerOpen] = useState(false);
   const [barcode, setBarcode] = useState("");
@@ -267,14 +271,36 @@ export default function ScanScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Unknown barcode</Text>
           <Text style={styles.meta}>{lookup.barcode}</Text>
+          {canAddProduct ? (
+            <Pressable
+              style={styles.button}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/products",
+                  params: { barcode: lookup.barcode },
+                })
+              }
+            >
+              <Text style={styles.buttonText}>Add product</Text>
+            </Pressable>
+          ) : null}
           <TextInput
             style={styles.input}
             value={flagNote}
             onChangeText={setFlagNote}
             placeholder="Optional note for owner"
           />
-          <Pressable style={styles.button} onPress={() => void flagUnknown()}>
-            <Text style={styles.buttonText}>Flag for owner</Text>
+          <Pressable
+            style={canAddProduct ? styles.secondary : styles.button}
+            onPress={() => void flagUnknown()}
+          >
+            <Text
+              style={
+                canAddProduct ? styles.secondaryText : styles.buttonText
+              }
+            >
+              Flag for owner
+            </Text>
           </Pressable>
         </View>
       ) : null}

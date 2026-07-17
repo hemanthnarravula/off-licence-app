@@ -1,4 +1,5 @@
 import { authClient } from "@/lib/auth-client";
+import { Platform } from "react-native";
 
 const baseURL =
   process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -16,9 +17,11 @@ export async function apiFetch<T = unknown>(
   options: ApiOptions = {},
 ): Promise<{ ok: boolean; status: number; data: T }> {
   const headers = new Headers(options.headers);
-  const cookie = (authClient as AuthClientWithCookie).getCookie?.() ?? "";
-  if (cookie) {
-    headers.set("Cookie", cookie);
+  if (Platform.OS !== "web") {
+    const cookie = (authClient as AuthClientWithCookie).getCookie?.() ?? "";
+    if (cookie) {
+      headers.set("Cookie", cookie);
+    }
   }
 
   let body = options.body;
@@ -31,6 +34,7 @@ export async function apiFetch<T = unknown>(
     ...options,
     headers,
     body,
+    credentials: Platform.OS === "web" ? "include" : options.credentials,
   });
 
   const text = await res.text();
