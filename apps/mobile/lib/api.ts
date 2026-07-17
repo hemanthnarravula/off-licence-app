@@ -28,6 +28,9 @@ export async function apiFetch<T = unknown>(
   if (options.json !== undefined) {
     headers.set("Content-Type", "application/json");
     body = JSON.stringify(options.json);
+  } else if (body instanceof FormData) {
+    // Let fetch set multipart boundary — do not force JSON Content-Type
+    headers.delete("Content-Type");
   }
 
   const res = await fetch(`${baseURL}${path}`, {

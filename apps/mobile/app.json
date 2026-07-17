@@ -11,7 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.offlicence.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Allow Off-licence to scan product barcodes."
+        "NSCameraUsageDescription": "Allow Off-licence to scan barcodes and photograph product labels.",
+        "NSPhotoLibraryUsageDescription": "Allow Off-licence to choose product label photos from your library."
       }
     },
     "android": {
@@ -20,7 +21,11 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -41,6 +46,13 @@
         "expo-camera",
         {
           "cameraPermission": "Allow Off-licence to scan product barcodes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Off-licence to choose product label photos.",
+          "cameraPermission": "Allow Off-licence to photograph product labels."
         }
       ],
       "expo-font",

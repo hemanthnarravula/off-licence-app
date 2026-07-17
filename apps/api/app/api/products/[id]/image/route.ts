@@ -1,9 +1,13 @@
-import { del, put } from "@vercel/blob";
+import { del } from "@vercel/blob";
 import { and, eq } from "drizzle-orm";
 import { products } from "@offlicence/db";
 import { requireRoles } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { jsonError } from "@/lib/http";
+import {
+  isAllowedImageType,
+  storeProductImage,
+} from "@/lib/product-image-storage";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,34 +34,25 @@ export async function POST(request: Request, { params }: Params) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return Response.json(
-        {
-          error:
-            "BLOB_READ_WRITE_TOKEN is not configured. Set Vercel Blob to enable image uploads.",
-        },
-        { status: 503 },
-      );
-    }
-
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) {
       return Response.json({ error: "file is required" }, { status: 400 });
     }
 
-    if (!file.type.startsWith("image/")) {
-      return Response.json({ error: "Only image uploads allowed" }, { status: 400 });
+    const contentType = file.type || "image/jpeg";
+    if (!isAllowedImageType(contentType)) {
+      return Response.json(
+        { error: "Only JPEG, PNG, WebP, or GIF images are allowed" },
+        { status: 400 },
+      );
     }
 
-    const blob = await put(
-      `products/${membership.organisationId}/${id}/${file.name}`,
-      file,
-      {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-        addRandomSuffix: true,
-      },
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const imageUrl = await storeProductImage(
+      bytes,
+      contentType,
+      `${membership.organisationId}-${id}`,
     );
 
     if (product.imageUrl?.includes("blob.vercel-storage.com")) {
@@ -72,11 +67,11 @@ export async function POST(request: Request, { params }: Params) {
 
     const [updated] = await db
       .update(products)
-      .set({ imageUrl: blob.url })
+      .set({ imageUrl })
       .where(eq(products.id, id))
       .returning();
 
-    return Response.json({ product: updated, imageUrl: blob.url });
+    return Response.json({ product: updated, imageUrl });
   } catch (error) {
     return jsonError(error);
   }
