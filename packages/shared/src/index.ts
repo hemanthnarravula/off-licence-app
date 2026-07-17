@@ -66,3 +66,43 @@ export const productImportSummarySchema = z.object({
   ),
 });
 export type ProductImportSummary = z.infer<typeof productImportSummarySchema>;
+
+export const stockRequestInputSchema = z.object({
+  storeId: z.string().uuid(),
+  productId: z.string().uuid(),
+  quantityRequested: z.number().int().positive(),
+  note: z.string().trim().max(500).optional().nullable(),
+});
+export type StockRequestInput = z.infer<typeof stockRequestInputSchema>;
+
+export const fulfilStockRequestSchema = z.object({
+  quantityBought: z.number().int().nonnegative(),
+});
+export type FulfilStockRequest = z.infer<typeof fulfilStockRequestSchema>;
+
+export const productSuggestionInputSchema = z.object({
+  storeId: z.string().uuid(),
+  barcode: z.string().trim().min(1).max(64),
+  note: z.string().trim().max(500).optional().nullable(),
+});
+export type ProductSuggestionInput = z.infer<
+  typeof productSuggestionInputSchema
+>;
+
+export const storeInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  address: z.string().trim().max(300).optional().nullable(),
+  openingHours: z.string().trim().max(300).optional().nullable(),
+});
+export type StoreInput = z.infer<typeof storeInputSchema>;
+
+export const teamInviteInputSchema = z.object({
+  email: z.string().trim().email(),
+  role: roleSchema,
+  storeId: z.string().uuid().optional().nullable(),
+  storeIds: z.array(z.string().uuid()).optional(),
+});
+export type TeamInviteInput = z.infer<typeof teamInviteInputSchema>;
+
+export const inviteStatusSchema = z.enum(["open", "accepted", "revoked"]);
+export type InviteStatus = z.infer<typeof inviteStatusSchema>;

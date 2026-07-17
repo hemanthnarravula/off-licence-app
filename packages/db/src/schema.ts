@@ -302,3 +302,30 @@ export const productSuggestions = pgTable("product_suggestion", {
     .defaultNow()
     .notNull(),
 });
+
+export const inviteStatusEnum = pgEnum("invite_status", [
+  "open",
+  "accepted",
+  "revoked",
+]);
+
+export const invites = pgTable("invite", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organisationId: uuid("organisation_id")
+    .notNull()
+    .references(() => organisations.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: roleEnum("role").notNull(),
+  storeId: uuid("store_id").references(() => stores.id, {
+    onDelete: "set null",
+  }),
+  token: text("token").notNull().unique(),
+  invitedByUserId: text("invited_by_user_id")
+    .notNull()
+    .references(() => user.id),
+  status: inviteStatusEnum("status").default("open").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
