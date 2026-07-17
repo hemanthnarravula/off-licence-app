@@ -1,12 +1,15 @@
 import {
   memberships,
   organisations,
+  productSuggestions,
+  products,
   sourcePlaces,
+  stockRequests,
   stores,
   user,
 } from "@offlicence/db/schema";
 import { createDb } from "@offlicence/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 async function seed() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -58,6 +61,8 @@ async function seed() {
     return;
   }
 
+  let ownerUserId: string | null = null;
+
   for (const candidate of users) {
     const existing = await db
       .select()
@@ -65,7 +70,10 @@ async function seed() {
       .where(eq(memberships.userId, candidate.id))
       .limit(1);
 
-    if (existing.length) continue;
+    if (existing.length) {
+      ownerUserId ??= candidate.id;
+      continue;
+    }
 
     await db.insert(memberships).values({
       userId: candidate.id,
@@ -73,7 +81,66 @@ async function seed() {
       role: "owner",
       storeId: null,
     });
+    ownerUserId ??= candidate.id;
     console.log(`Attached ${candidate.email} as owner`);
+  }
+
+  const orgStores = await db
+    .select()
+    .from(stores)
+    .where(eq(stores.organisationId, org.id));
+  const orgProducts = await db
+    .select()
+    .from(products)
+    .where(eq(products.organisationId, org.id))
+    .limit(5);
+
+  if (ownerUserId && orgStores[0] && orgProducts.length) {
+    for (const product of orgProducts.slice(0, 2)) {
+      const [open] = await db
+        .select()
+        .from(stockRequests)
+        .where(
+          and(
+            eq(stockRequests.storeId, orgStores[0].id),
+            eq(stockRequests.productId, product.id),
+            eq(stockRequests.status, "open"),
+          ),
+        )
+        .limit(1);
+      if (open) continue;
+      await db.insert(stockRequests).values({
+        storeId: orgStores[0].id,
+        productId: product.id,
+        requestedByUserId: ownerUserId,
+        quantityRequested: 6,
+        note: "Seed request",
+        status: "open",
+      });
+    }
+    console.log("Ensured sample open stock requests");
+
+    const [existingSuggestion] = await db
+      .select()
+      .from(productSuggestions)
+      .where(
+        and(
+          eq(productSuggestions.organisationId, org.id),
+          eq(productSuggestions.status, "open"),
+        ),
+      )
+      .limit(1);
+    if (!existingSuggestion) {
+      await db.insert(productSuggestions).values({
+        organisationId: org.id,
+        storeId: orgStores[0].id,
+        barcode: "0000000000000",
+        note: "Seed unknown barcode",
+        suggestedByUserId: ownerUserId,
+        status: "open",
+      });
+      console.log("Seeded sample product suggestion");
+    }
   }
 }
 

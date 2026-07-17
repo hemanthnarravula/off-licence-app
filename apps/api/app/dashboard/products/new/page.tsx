@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { ProductForm } from "../product-form";
 
-export default function NewProductPage() {
+type Props = {
+  searchParams: Promise<{ barcode?: string }>;
+};
+
+export default async function NewProductPage({ searchParams }: Props) {
+  const { barcode } = await searchParams;
+
   return (
     <div className="space-y-6">
       <div>
@@ -15,7 +21,7 @@ export default function NewProductPage() {
           Add product
         </h2>
       </div>
-      <ProductForm />
+      <ProductForm initial={{ barcode: barcode ?? "" }} />
     </div>
   );
 }

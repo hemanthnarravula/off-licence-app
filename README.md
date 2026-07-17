@@ -57,7 +57,7 @@ After first sign-up, re-run `pnpm db:seed` (or attach membership manually) so th
 
 ## Status
 
-Scaffold + migrations + Better Auth + authz + **dashboard Products CRUD / CSV import / Blob image endpoints**. Fulfil board and staff scan flows next.
+Dashboard now includes **Products**, **Requests fulfil board**, **Suggestions**, **Stores**, **Source places**, and **Team** invites. Staff mobile scan flows next.
 
 Products import template: `apps/api/public/sample-products.csv`.
 Image uploads require `BLOB_READ_WRITE_TOKEN` (Vercel Blob).
