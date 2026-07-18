@@ -12,3 +12,8 @@ package-lock.json
 apps/*/pnpm-lock.yaml
 *.tsbuildinfo
 apps/mobile/.claude/
+
+.vercel
+.vercel/
+apps/api/.vercel/
+apps/api/.agents/
