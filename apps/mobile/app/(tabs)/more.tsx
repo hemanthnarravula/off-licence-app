@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,13 +26,21 @@ type Suggestion = {
   suggestedByEmail: string;
 };
 
+type Store = { id: string; name: string };
+
 export default function MoreScreen() {
   const { user, membership, storeId, signOut } = useSession();
   const router = useRouter();
   const canManage =
     membership?.role === "owner" || membership?.role === "manager";
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const storeName = useMemo(
+    () => stores.find((store) => store.id === storeId)?.name,
+    [stores, storeId],
+  );
 
   const loadSuggestions = useCallback(async () => {
     if (!canManage) return;
@@ -48,6 +56,12 @@ export default function MoreScreen() {
     }
     setSuggestions(res.data.suggestions ?? []);
   }, [canManage]);
+
+  useEffect(() => {
+    void apiFetch<{ stores: Store[] }>("/api/stores").then((res) => {
+      if (res.ok) setStores(res.data.stores ?? []);
+    });
+  }, []);
 
   useEffect(() => {
     void loadSuggestions();
@@ -93,11 +107,10 @@ export default function MoreScreen() {
         ) : undefined
       }
     >
-      <Text style={styles.title}>More</Text>
       <Text style={styles.meta}>{user?.email}</Text>
       <Text style={styles.meta}>
         Role: {membership?.role ?? "none"}
-        {storeId ? ` · store ${storeId.slice(0, 8)}…` : ""}
+        {storeName ? ` · ${storeName}` : ""}
       </Text>
 
       {canManage ? (
@@ -125,13 +138,13 @@ export default function MoreScreen() {
               {row.note ? <Text style={styles.meta}>{row.note}</Text> : null}
               <View style={styles.row}>
                 <Pressable
-                  style={styles.button}
+                  style={[styles.button, styles.rowButton]}
                   onPress={() => void accept(row.id, row.barcode)}
                 >
                   <Text style={styles.buttonText}>Accept</Text>
                 </Pressable>
                 <Pressable
-                  style={styles.secondary}
+                  style={[styles.secondary, styles.rowButton]}
                   onPress={() => void dismiss(row.id)}
                 >
                   <Text style={styles.secondaryText}>Dismiss</Text>
@@ -154,31 +167,34 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 10,
     paddingBottom: 40,
+    backgroundColor: "#fafafa",
   },
-  title: { fontSize: 28, fontWeight: "700" },
-  section: { marginTop: 12, fontSize: 18, fontWeight: "700" },
+  section: { marginTop: 12, fontSize: 18, fontWeight: "700", color: "#18181b" },
   meta: { color: "#52525b", fontSize: 14 },
   row: { flexDirection: "row", gap: 8, marginTop: 6 },
+  rowButton: { flex: 1 },
   button: {
-    flex: 1,
     marginTop: 4,
     backgroundColor: "#18181b",
     borderRadius: 8,
     paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   secondary: {
-    flex: 1,
     marginTop: 4,
     borderWidth: 1,
     borderColor: "#d4d4d8",
     borderRadius: 8,
     paddingVertical: 12,
+    paddingHorizontal: 14,
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#fff",
   },
-  secondaryText: { fontWeight: "600" },
+  secondaryText: { fontWeight: "600", color: "#18181b" },
   card: {
     borderWidth: 1,
     borderColor: "#e4e4e7",
@@ -187,5 +203,5 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#fff",
   },
-  cardTitle: { fontSize: 16, fontWeight: "700" },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: "#18181b" },
 });

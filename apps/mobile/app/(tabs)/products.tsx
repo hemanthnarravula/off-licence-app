@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiFetch } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -31,7 +33,29 @@ type ProductRow = {
   brand: string | null;
   category: string;
   sourcePlaceName: string | null;
+  imageUrl?: string | null;
 };
+
+type AnalyzeResponse = {
+  error?: string;
+  imageUrl?: string;
+  extracted?: {
+    name: string | null;
+    brand: string | null;
+    category: string | null;
+    size: string | null;
+  } | null;
+  extractionWarning?: string | null;
+};
+
+function isCategory(
+  value: string | null | undefined,
+): value is (typeof CATEGORIES)[number] {
+  return (
+    typeof value === "string" &&
+    (CATEGORIES as readonly string[]).includes(value)
+  );
+}
 
 export default function ProductsScreen() {
   const { membership } = useSession();
@@ -48,9 +72,12 @@ export default function ProductsScreen() {
   const [sourcePlaceId, setSourcePlaceId] = useState<string>("");
   const [size, setSize] = useState("");
   const [abv, setAbv] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [localPreviewUri, setLocalPreviewUri] = useState<string | null>(null);
   const [places, setPlaces] = useState<SourcePlace[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,6 +107,106 @@ export default function ProductsScreen() {
     void load();
   }, [load]);
 
+  async function analyzeAsset(asset: ImagePicker.ImagePickerAsset) {
+    setAnalyzing(true);
+    setMessage(null);
+    setLocalPreviewUri(asset.uri);
+
+    const form = new FormData();
+    const mime = asset.mimeType ?? "image/jpeg";
+    const ext = mime.includes("png")
+      ? "png"
+      : mime.includes("webp")
+        ? "webp"
+        : "jpg";
+    form.append("file", {
+      uri: asset.uri,
+      name: asset.fileName ?? `label.${ext}`,
+      type: mime,
+    } as unknown as Blob);
+
+    const res = await apiFetch<AnalyzeResponse>("/api/products/analyze-photo", {
+      method: "POST",
+      body: form,
+    });
+    setAnalyzing(false);
+
+    if (!res.ok) {
+      Alert.alert("Photo failed", res.data.error ?? "Could not analyse photo");
+      return;
+    }
+
+    if (res.data.imageUrl) {
+      setImageUrl(res.data.imageUrl);
+    }
+
+    const extracted = res.data.extracted;
+    if (extracted) {
+      if (extracted.name) setName(extracted.name);
+      if (extracted.brand) setBrand(extracted.brand);
+      if (extracted.size) setSize(extracted.size);
+      if (isCategory(extracted.category)) setCategory(extracted.category);
+      setMessage("Filled fields from the label photo — check and save.");
+    } else if (res.data.extractionWarning) {
+      setMessage(res.data.extractionWarning);
+    } else {
+      setMessage("Photo attached — fill in the fields and save.");
+    }
+  }
+
+  function pickPhoto() {
+    Alert.alert("Product photo", "Take a label photo or choose from library", [
+      {
+        text: "Camera",
+        onPress: () => {
+          void (async () => {
+            const permission =
+              await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert("Camera permission is required");
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ["images"],
+              quality: 0.7,
+              allowsEditing: false,
+            });
+            if (!result.canceled && result.assets[0]) {
+              await analyzeAsset(result.assets[0]);
+            }
+          })();
+        },
+      },
+      {
+        text: "Library",
+        onPress: () => {
+          void (async () => {
+            const permission =
+              await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert("Photo library permission is required");
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ["images"],
+              quality: 0.7,
+              allowsEditing: false,
+            });
+            if (!result.canceled && result.assets[0]) {
+              await analyzeAsset(result.assets[0]);
+            }
+          })();
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
+
+  function clearPhoto() {
+    setImageUrl(null);
+    setLocalPreviewUri(null);
+  }
+
   async function save() {
     if (!barcode.trim() || !name.trim()) {
       Alert.alert("Barcode and name are required");
@@ -99,6 +226,7 @@ export default function ProductsScreen() {
           sourcePlaceId: sourcePlaceId || null,
           size: size.trim() || null,
           abv: abv.trim() || null,
+          imageUrl: imageUrl || null,
         },
       },
     );
@@ -113,6 +241,8 @@ export default function ProductsScreen() {
     setBrand("");
     setSize("");
     setAbv("");
+    setImageUrl(null);
+    setLocalPreviewUri(null);
     setCategory("other");
     router.setParams({ barcode: "" });
     await load();
@@ -127,12 +257,35 @@ export default function ProductsScreen() {
     );
   }
 
+  const previewUri = localPreviewUri ?? imageUrl;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Add product</Text>
       <Text style={styles.meta}>
-        One-by-one on the go. CSV import and images live on the web dashboard.
+        Photograph the label to fill name, brand, size, and category. CSV import
+        stays on the web dashboard.
       </Text>
+
+      <Pressable
+        style={[styles.button, styles.secondaryButton]}
+        onPress={pickPhoto}
+        disabled={analyzing || busy}
+      >
+        <Text style={[styles.buttonText, styles.secondaryButtonText]}>
+          {analyzing ? "Reading label…" : "Photo → extract details"}
+        </Text>
+      </Pressable>
+      {analyzing ? <ActivityIndicator /> : null}
+
+      {previewUri ? (
+        <View style={styles.previewWrap}>
+          <Image source={{ uri: previewUri }} style={styles.preview} />
+          <Pressable onPress={clearPhoto} style={styles.clearPhoto}>
+            <Text style={styles.clearPhotoText}>Remove photo</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Text style={styles.label}>Barcode</Text>
       <TextInput
@@ -210,12 +363,12 @@ export default function ProductsScreen() {
         ))}
       </View>
 
-      <Text style={styles.label}>Size</Text>
+      <Text style={styles.label}>Size / pack</Text>
       <TextInput
         style={styles.input}
         value={size}
         onChangeText={setSize}
-        placeholder="e.g. 500ml"
+        placeholder="e.g. 500ml, 12x330ml"
       />
       <Text style={styles.label}>ABV</Text>
       <TextInput
@@ -228,7 +381,7 @@ export default function ProductsScreen() {
       <Pressable
         style={styles.button}
         onPress={() => void save()}
-        disabled={busy}
+        disabled={busy || analyzing}
       >
         <Text style={styles.buttonText}>{busy ? "Saving…" : "Save product"}</Text>
       </Pressable>
@@ -243,13 +396,20 @@ export default function ProductsScreen() {
       ) : null}
       {products.map((row) => (
         <View key={row.id} style={styles.card}>
-          <Text style={styles.cardTitle}>{row.name}</Text>
-          <Text style={styles.meta}>
-            {row.barcode}
-            {row.brand ? ` · ${row.brand}` : ""}
-            {` · ${row.category.replace("_", " ")}`}
-            {row.sourcePlaceName ? ` · ${row.sourcePlaceName}` : ""}
-          </Text>
+          <View style={styles.cardRow}>
+            {row.imageUrl ? (
+              <Image source={{ uri: row.imageUrl }} style={styles.thumb} />
+            ) : null}
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={styles.cardTitle}>{row.name}</Text>
+              <Text style={styles.meta}>
+                {row.barcode}
+                {row.brand ? ` · ${row.brand}` : ""}
+                {` · ${row.category.replace("_", " ")}`}
+                {row.sourcePlaceName ? ` · ${row.sourcePlaceName}` : ""}
+              </Text>
+            </View>
+          </View>
         </View>
       ))}
     </ScrollView>
@@ -257,8 +417,14 @@ export default function ProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 8, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: "700" },
+  container: {
+    flexGrow: 1,
+    padding: 20,
+    gap: 8,
+    paddingBottom: 40,
+    backgroundColor: "#fafafa",
+  },
+  title: { fontSize: 28, fontWeight: "700", color: "#18181b" },
   meta: { color: "#52525b", fontSize: 14 },
   label: { fontWeight: "600", marginTop: 6 },
   input: {
@@ -288,7 +454,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  secondaryButton: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#18181b",
+  },
   buttonText: { color: "#fff", fontWeight: "600" },
+  secondaryButtonText: { color: "#18181b" },
+  previewWrap: { gap: 8 },
+  preview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: "#e4e4e7",
+  },
+  clearPhoto: { alignSelf: "flex-start" },
+  clearPhotoText: { color: "#b91c1c", fontWeight: "600" },
   message: {
     color: "#047857",
     backgroundColor: "#ecfdf5",
@@ -304,5 +485,7 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: "#fff",
   },
+  cardRow: { flexDirection: "row", gap: 12, alignItems: "center" },
+  thumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: "#e4e4e7" },
   cardTitle: { fontSize: 16, fontWeight: "700" },
 });

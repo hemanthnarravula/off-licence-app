@@ -1,57 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { loginAction, type LoginState } from "./actions";
+
+const initialState: LoginState = { error: null };
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-
-    try {
-      if (mode === "sign-up") {
-        const result = await authClient.signUp.email({
-          name,
-          email,
-          password,
-        });
-        if (result.error) {
-          setError(result.error.message ?? "Sign up failed");
-          return;
-        }
-      } else {
-        const result = await authClient.signIn.email({
-          email,
-          password,
-        });
-        if (result.error) {
-          setError(result.error.message ?? "Sign in failed");
-          return;
-        }
-      }
-
-      router.push("/dashboard");
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setPending(false);
-    }
-  }
+  const [state, formAction, pending] = useActionState(loginAction, initialState);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center bg-zinc-50 px-6 py-16 text-zinc-900">
       <p className="text-sm font-medium tracking-wide text-zinc-500 uppercase">
         Off-licence
       </p>
@@ -62,15 +22,17 @@ export default function LoginPage() {
         Owner/manager dashboard access. Staff and customers use the mobile app.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+      <form action={formAction} className="mt-8 flex flex-col gap-4">
+        <input type="hidden" name="mode" value={mode} />
+
         {mode === "sign-up" ? (
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-zinc-700">Name</span>
             <input
               required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="rounded-md border border-zinc-300 px-3 py-2"
+              name="name"
+              defaultValue="Owner Demo"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
               autoComplete="name"
             />
           </label>
@@ -81,9 +43,9 @@ export default function LoginPage() {
           <input
             required
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2"
+            name="email"
+            defaultValue="owner@example.com"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
             autoComplete="email"
           />
         </label>
@@ -93,26 +55,26 @@ export default function LoginPage() {
           <input
             required
             type="password"
+            name="password"
             minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2"
+            defaultValue="password123"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900"
             autoComplete={
               mode === "sign-in" ? "current-password" : "new-password"
             }
           />
         </label>
 
-        {error ? (
+        {state.error ? (
           <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
+            {state.error}
           </p>
         ) : null}
 
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60"
         >
           {pending
             ? "Please wait…"
@@ -125,12 +87,7 @@ export default function LoginPage() {
       <button
         type="button"
         className="mt-4 text-left text-sm text-zinc-600 underline"
-        onClick={() => {
-          setMode((current) =>
-            current === "sign-in" ? "sign-up" : "sign-in",
-          );
-          setError(null);
-        }}
+        onClick={() => setMode((current) => (current === "sign-in" ? "sign-up" : "sign-in"))}
       >
         {mode === "sign-in"
           ? "Need an account? Sign up"

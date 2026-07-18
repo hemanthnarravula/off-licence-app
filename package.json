@@ -23,6 +23,10 @@
       "sharp",
       "unrs-resolver",
       "@esbuild-kit/core-utils"
-    ]
+    ],
+    "overrides": {
+      "babel-preset-expo": "~54.0.12",
+      "@expo/metro-config": "~54.0.17"
+    }
   }
 }

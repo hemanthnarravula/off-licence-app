@@ -132,14 +132,14 @@ export default function RequestsScreen() {
           />
           <View style={styles.row}>
             <Pressable
-              style={styles.button}
+              style={[styles.button, styles.rowButton]}
               disabled={busyId === row.id}
               onPress={() => void fulfil(row.id)}
             >
               <Text style={styles.buttonText}>Confirm done</Text>
             </Pressable>
             <Pressable
-              style={styles.secondary}
+              style={[styles.secondary, styles.rowButton]}
               onPress={() => {
                 setFulfilId(null);
                 setBoughtQty("");
@@ -156,7 +156,7 @@ export default function RequestsScreen() {
       <View style={styles.row}>
         {canFulfil ? (
           <Pressable
-            style={styles.button}
+            style={[styles.button, styles.rowButton]}
             disabled={busyId === row.id}
             onPress={() => {
               setFulfilId(row.id);
@@ -167,7 +167,7 @@ export default function RequestsScreen() {
           </Pressable>
         ) : null}
         <Pressable
-          style={styles.secondary}
+          style={[styles.secondary, styles.rowButton]}
           disabled={busyId === row.id}
           onPress={() => void cancel(row.id)}
         >
@@ -258,11 +258,12 @@ export default function RequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 10, paddingBottom: 40 },
-  title: { fontSize: 28, fontWeight: "700" },
+  container: { flexGrow: 1, padding: 20, gap: 10, paddingBottom: 40, backgroundColor: "#fafafa" },
+  title: { fontSize: 28, fontWeight: "700", color: "#18181b" },
   meta: { color: "#52525b", fontSize: 14 },
   label: { fontWeight: "600" },
   row: { flexDirection: "row", gap: 8, marginTop: 6 },
+  rowButton: { flex: 1 },
   rowWrap: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   chip: {
     borderWidth: 1,
@@ -304,21 +305,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   button: {
-    flex: 1,
     backgroundColor: "#18181b",
     borderRadius: 8,
     paddingVertical: 10,
+    paddingHorizontal: 14,
     alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: { color: "#fff", fontWeight: "600" },
   secondary: {
-    flex: 1,
     borderWidth: 1,
     borderColor: "#d4d4d8",
     borderRadius: 8,
     paddingVertical: 10,
+    paddingHorizontal: 14,
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#fff",
   },
-  secondaryText: { fontWeight: "600" },
+  secondaryText: { fontWeight: "600", color: "#18181b" },
 });

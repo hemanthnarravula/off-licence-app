@@ -1,6 +1,7 @@
-import { useColorScheme as useColorSchemeCore } from 'react-native';
+import { useColorScheme as useColorSchemeCore } from "react-native";
 
-export const useColorScheme = () => {
+/** Always returns a concrete scheme so Colors[...] never indexes null. */
+export function useColorScheme(): "light" | "dark" {
   const coreScheme = useColorSchemeCore();
-  return coreScheme === 'unspecified' ? 'light' : coreScheme;
-};
+  return coreScheme === "dark" ? "dark" : "light";
+}

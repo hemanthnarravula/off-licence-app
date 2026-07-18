@@ -1,14 +1,19 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Off-licence",
+    "slug": "off-licence",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.offlicence.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Off-licence to scan barcodes and photograph product labels.",
+        "NSPhotoLibraryUsageDescription": "Allow Off-licence to choose product label photos from your library."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +22,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +47,17 @@
         {
           "cameraPermission": "Allow Off-licence to scan product barcodes."
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Off-licence to choose product label photos.",
+          "cameraPermission": "Allow Off-licence to photograph product labels."
+        }
+      ],
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

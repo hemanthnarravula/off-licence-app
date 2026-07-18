@@ -67,6 +67,7 @@ export function ProductForm({
       sourcePlaceId: values.sourcePlaceId || null,
       size: values.size || null,
       abv: values.abv || null,
+      imageUrl: imageUrl || null,
     };
 
     const res = await fetch(
@@ -90,29 +91,66 @@ export function ProductForm({
   }
 
   async function onUpload(file: File) {
-    if (!productId) {
-      setError("Save the product first, then upload an image.");
-      return;
-    }
     setUploading(true);
     setError(null);
     const form = new FormData();
     form.set("file", file);
-    const res = await fetch(`/api/products/${productId}/image`, {
+
+    const res = await fetch("/api/products/analyze-photo", {
       method: "POST",
       body: form,
     });
     const data = await res.json();
-    setUploading(false);
     if (!res.ok) {
+      setUploading(false);
       setError(data.error ?? "Upload failed");
       return;
     }
-    setImageUrl(data.imageUrl);
+
+    if (data.imageUrl) setImageUrl(data.imageUrl);
+
+    const extracted = data.extracted as
+      | {
+          name: string | null;
+          brand: string | null;
+          category: string | null;
+          size: string | null;
+        }
+      | null
+      | undefined;
+
+    if (extracted) {
+      setValues((v) => ({
+        ...v,
+        name: extracted.name || v.name,
+        brand: extracted.brand || v.brand,
+        size: extracted.size || v.size,
+        category: extracted.category || v.category,
+      }));
+    } else if (data.extractionWarning) {
+      setError(data.extractionWarning);
+    }
+
+    if (productId && data.imageUrl) {
+      const patch = await fetch(`/api/products/${productId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: data.imageUrl }),
+      });
+      if (!patch.ok) {
+        const patchData = await patch.json();
+        setError(patchData.error ?? "Image saved but product update failed");
+      }
+    }
+
+    setUploading(false);
   }
 
   async function onRemoveImage() {
-    if (!productId) return;
+    if (!productId) {
+      setImageUrl(null);
+      return;
+    }
     setUploading(true);
     const res = await fetch(`/api/products/${productId}/image`, {
       method: "DELETE",
@@ -213,15 +251,16 @@ export function ProductForm({
         )}
         <div className="mt-3 flex flex-wrap gap-2">
           <label className="cursor-pointer rounded-md border border-zinc-300 px-3 py-1.5 text-sm">
-            {uploading ? "Uploading…" : "Upload"}
+            {uploading ? "Reading label…" : "Upload & extract"}
             <input
               type="file"
               accept="image/*"
               className="hidden"
-              disabled={uploading || !productId}
+              disabled={uploading}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) void onUpload(file);
+                e.target.value = "";
               }}
             />
           </label>
@@ -236,11 +275,9 @@ export function ProductForm({
             </button>
           ) : null}
         </div>
-        {!productId ? (
-          <p className="mt-2 text-xs text-zinc-500">
-            Save the product first to enable Blob image upload.
-          </p>
-        ) : null}
+        <p className="mt-2 text-xs text-zinc-500">
+          Upload a label photo to fill name, brand, size, and category.
+        </p>
       </div>
 
       {error ? (
