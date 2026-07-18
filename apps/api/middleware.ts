@@ -15,11 +15,13 @@ function isAllowedOrigin(origin: string) {
   if (allowedOrigins.has(origin)) return true;
   // Expo Go / tunnel / Cloudflare quick tunnels during local device testing
   if (origin.startsWith("exp://")) return true;
+  if (origin.startsWith("mobile://")) return true;
   if (origin.startsWith("http://localhost:")) return true;
   if (origin.startsWith("http://127.0.0.1:")) return true;
   if (origin.endsWith(".trycloudflare.com")) return true;
   if (origin.endsWith(".exp.direct")) return true;
   if (origin.endsWith(".expo.dev")) return true;
+  if (origin.endsWith(".vercel.app")) return true;
   return false;
 }
 

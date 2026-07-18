@@ -23,9 +23,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  // Allow any trycloudflare / localhost / Expo origin during local device testing.
+  // Expo Go sends expo-origin (copied to Origin by the expo plugin). Trust
+  // mobile schemes in production too — the plugin only auto-adds exp:// in development.
   trustedOrigins: async (request) => {
-    const origin = request?.headers?.get?.("origin") ?? "";
+    const origin =
+      request?.headers?.get?.("origin") ??
+      request?.headers?.get?.("expo-origin") ??
+      "";
     const defaults = [
       baseURL,
       "http://localhost:3000",
@@ -47,6 +51,7 @@ export const auth = betterAuth({
       origin.endsWith(".exp.direct") ||
       origin.endsWith(".expo.dev") ||
       origin.startsWith("exp://") ||
+      origin.startsWith("mobile://") ||
       origin.startsWith("http://localhost:") ||
       origin.startsWith("http://127.0.0.1:")
     ) {
@@ -54,7 +59,7 @@ export const auth = betterAuth({
     }
     return defaults;
   },
-  plugins: [expo(), nextCookies()],
+  plugins: [expo({ disableOriginOverride: false }), nextCookies()],
   baseURL,
   secret: process.env.BETTER_AUTH_SECRET,
 });

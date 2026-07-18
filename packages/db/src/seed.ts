@@ -1,4 +1,5 @@
 import {
+  account,
   memberships,
   organisations,
   productSuggestions,
@@ -9,7 +10,16 @@ import {
   user,
 } from "@offlicence/db/schema";
 import { createDb } from "@offlicence/db";
+import { hashPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
+import { randomBytes } from "node:crypto";
+
+const DEMO_EMAIL = "owner@example.com";
+const DEMO_PASSWORD = "password123";
+
+function newId() {
+  return randomBytes(24).toString("base64url");
+}
 
 async function seed() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -53,12 +63,29 @@ async function seed() {
     console.log("Organisation already exists:", org.id);
   }
 
-  const users = await db.select().from(user).limit(5);
+  let users = await db.select().from(user).limit(5);
   if (!users.length) {
-    console.log(
-      "No users yet — sign up via /login, then re-run seed to attach owner membership.",
-    );
-    return;
+    const userId = newId();
+    const now = new Date();
+    await db.insert(user).values({
+      id: userId,
+      name: "Demo Owner",
+      email: DEMO_EMAIL,
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.insert(account).values({
+      id: newId(),
+      accountId: userId,
+      providerId: "credential",
+      userId,
+      password: await hashPassword(DEMO_PASSWORD),
+      createdAt: now,
+      updatedAt: now,
+    });
+    console.log(`Created demo user ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
+    users = await db.select().from(user).limit(5);
   }
 
   let ownerUserId: string | null = null;
